@@ -1,7 +1,10 @@
-import User from "../models/User.model.js";
+import { sendWelcomeEmail } from "../emails/emailHandlers.js";
+import { generateToken } from "../lib/utils.js";
+import User from "../models/User.js";
 import bcrypt from "bcryptjs";
-
-export const signup = (req, res) => {
+import "../lib/env.js"; // Load environment variables from env.js
+export const signup = async (req, res) => {
+    console.log("Signup API hit");
     const {fullName, email, password} = req.body;
 
     try{
@@ -31,14 +34,27 @@ export const signup = (req, res) => {
         })
 
         if(newUser){
-            generateToken(newUser._id, res);
-            await newUser.save();
+           // generateToken(newUser._id, res);
+           // await newUser.save();
+
+            //Persist user first, then issue auth cookie
+            const savedUser = await newUser.save();
+            console.log("User saved:", savedUser);
+            generateToken(savedUser._id, res);
             res.status(201).json({
-                _id: newUser._id,
+                _id: savedUser._id,
                 fullName: newUser.fullName,
                 email: newUser.email,
                 profilePic: newUser.profilePic,
             });
+
+            // todo: send welcome email to user
+            try {
+                sendWelcomeEmail(savedUser.email, savedUser.fullName, ENV.CLIENT_URL);
+            } catch (error) {
+                console.error("Error sending welcome email:", error);
+            }
+
         } else {
             res.status(400).json({message: "Invalid user data"})  ;
         }
